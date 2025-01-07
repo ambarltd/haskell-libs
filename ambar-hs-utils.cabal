@@ -1,0 +1,62 @@
+cabal-version:      3.4
+name:               ambar-hs-utils
+version:            0.1.0.0
+synopsis:           Ambar utility modules
+description:        These modules are used by multiple Ambar projects.
+homepage:           github.com/ambarltd/haskell-utils
+license:            NONE
+author:             Ambar
+maintainer:         contact@ambar.cloud
+-- copyright:
+category:           NONE
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+-- extra-source-files:
+
+common common
+    default-language: GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        TypeFamilies
+        TypeFamilyDependencies
+        DeriveAnyClass
+
+library
+    import:           common
+    exposed-modules:
+        Util.Async
+        Util.Delay
+        Util.Directory
+        Util.Exception
+        Util.Logger
+        Util.Prettyprinter
+        Util.STM
+        Util.Some
+        Util.Warden
+    hs-source-dirs:   src
+    default-language: GHC2021
+    build-depends:
+        base ^>=4.20.0.0
+        , aeson
+        , async
+        , bytestring
+        , directory
+        , extra
+        , filepath
+        , prettyprinter
+        , stm
+        , text
+        , time
+        , unordered-containers
+
+test-suite ambar-hs-utils-tests
+    import:           common
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Main.hs
+    build-depends:
+        base ^>=4.20.0.0,
+        ambar-hs-utils
