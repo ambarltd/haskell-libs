@@ -4,6 +4,10 @@ function build {
   cabal build ambar-hs-utils -j "${@}"
 }
 
+function build-docs {
+  cabal haddock
+}
+
 function test {
   cabal run ambar-hs-utils-tests -- "${@}"
 }
