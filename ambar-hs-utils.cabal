@@ -7,11 +7,8 @@ homepage:           github.com/ambarltd/haskell-utils
 license:            NONE
 author:             Ambar
 maintainer:         contact@ambar.cloud
--- copyright:
 category:           NONE
 build-type:         Simple
-extra-doc-files:    CHANGELOG.md
--- extra-source-files:
 
 common common
     default-language: GHC2021
@@ -30,8 +27,10 @@ library
         Util.Async
         Util.Delay
         Util.Directory
+        Util.Docker
         Util.Exception
         Util.Logger
+        Util.OnDemand
         Util.Prettyprinter
         Util.STM
         Util.Some
@@ -47,6 +46,7 @@ library
         , extra
         , filepath
         , prettyprinter
+        , process
         , stm
         , text
         , time
@@ -58,5 +58,9 @@ test-suite ambar-hs-utils-tests
     hs-source-dirs:   test
     main-is:          Main.hs
     build-depends:
-        base ^>=4.20.0.0,
-        ambar-hs-utils
+        base ^>=4.20.0.0
+        , ambar-hs-utils
+        , async
+        , hspec
+        , hspec-expectations
+        , stm
