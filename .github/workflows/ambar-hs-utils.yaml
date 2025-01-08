@@ -1,8 +1,8 @@
-name: Build and Test
+name: ambar-hs-utils
 on:
   push:
-    paths-ignore:
-      - '**.md'
+    paths:
+      - 'ambar-hs-utils/**'
 
 # only one build per branch
 concurrency:
