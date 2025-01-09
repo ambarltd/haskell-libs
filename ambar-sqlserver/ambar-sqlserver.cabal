@@ -1,0 +1,50 @@
+cabal-version:      3.4
+name:               ambar-sqlserver
+version:            0.1.0.0
+license:            NONE
+author:             Ambar
+maintainer:         contact@ambar.cloud
+category:           Database
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+
+common common
+    ghc-options: -Wall
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        TypeFamilies
+        TypeFamilyDependencies
+        DeriveAnyClass
+
+library
+    import:           common
+    exposed-modules:
+        Database.SQLServer
+    build-depends:
+        base ^>=4.20.0.0
+        , ambar-hs-utils
+        , bytestring
+        , base16
+        , text
+        , ms-tds
+        , mssql-simple
+
+    hs-source-dirs:   src
+    default-language: GHC2021
+
+test-suite ambar-sqlserver-tests
+    import:           common
+    default-language: GHC2021
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Main.hs
+    build-depends:
+        base ^>=4.20.0.0
+        , ambar-hs-utils
+        , ambar-sqlserver
+        , bytestring
+        , text
+        , hspec
