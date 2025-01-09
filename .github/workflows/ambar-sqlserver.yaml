@@ -1,12 +1,12 @@
-name: ambar-hs-utils
+name: ambar-sqlserver
 on:
   push:
     paths:
-      - 'ambar-hs-utils/**'
+      - 'ambar-sqlserver/**'
 
 # only one build per branch
 concurrency:
-  group: build-hs-utils-${{ github.ref }}
+  group: build-sqlserver-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -33,7 +33,7 @@ jobs:
 
       - name: Build - Configure
         run: |
-          cd ambar-hs-utils
+          cd ambar-sqlserver
           cabal configure --enable-tests --enable-benchmarks
           cabal build all --dry-run
         # The last step generates dist-newstyle/cache/plan.json for the cache key.
@@ -52,7 +52,7 @@ jobs:
         # If we had an exact cache hit, the dependencies will be up to date.
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          cd ambar-hs-utils
+          cd ambar-sqlserver
           cabal build all --only-dependencies
 
       # Cache dependencies already here, so that we do not have to rebuild them should the subsequent steps fail.
@@ -66,10 +66,10 @@ jobs:
 
       - name: Build
         run: |
-          cd ambar-hs-utils
+          cd ambar-sqlserver
           cabal build all
 
       - name: Test
         run: |
-          cd ambar-hs-utils
+          cd ambar-sqlserver
           cabal test
