@@ -33,6 +33,7 @@ jobs:
 
       - name: Build - Configure
         run: |
+          cd ambar-hs-utils
           cabal configure --enable-tests --enable-benchmarks
           cabal build all --dry-run
         # The last step generates dist-newstyle/cache/plan.json for the cache key.
@@ -50,7 +51,9 @@ jobs:
       - name: Build - Install dependencies
         # If we had an exact cache hit, the dependencies will be up to date.
         if: steps.cache.outputs.cache-hit != 'true'
-        run: cabal build all --only-dependencies
+        run: |
+          cd ambar-hs-utils
+          cabal build all --only-dependencies
 
       # Cache dependencies already here, so that we do not have to rebuild them should the subsequent steps fail.
       - name: Build - Save dependencies to cache
@@ -62,7 +65,11 @@ jobs:
           key: ${{ steps.cache.outputs.cache-primary-key }}
 
       - name: Build
-        run: cabal build all
+        run: |
+          cd ambar-hs-utils
+          cabal build all
 
       - name: Test
-        run: cabal test
+        run: |
+          cd ambar-hs-utils
+          cabal test
