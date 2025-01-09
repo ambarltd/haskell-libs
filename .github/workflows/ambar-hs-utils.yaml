@@ -72,4 +72,4 @@ jobs:
       - name: Test
         run: |
           cd ambar-hs-utils
-          cabal test
+          cabal run ambar-hs-utils-tests

@@ -72,4 +72,4 @@ jobs:
       - name: Test
         run: |
           cd ambar-sqlserver
-          cabal test
+          cabal run ambar-sqlserver-tests
