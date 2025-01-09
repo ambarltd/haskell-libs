@@ -6,7 +6,6 @@ author:             Ambar
 maintainer:         contact@ambar.cloud
 category:           Database
 build-type:         Simple
-extra-doc-files:    CHANGELOG.md
 
 common common
     ghc-options: -Wall
