@@ -1,0 +1,75 @@
+name: ambar-record
+on:
+  push:
+    paths:
+      - 'ambar-record/**'
+
+# only one build per branch
+concurrency:
+  group: build-record-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: GHC ${{ matrix.ghc }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        ghc: ['9.10.1']
+        cabal: ['3.10.3.0']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup - GHC ${{ matrix.ghc }}
+        uses: haskell-actions/setup@v2
+        id: setup
+        with:
+          ghc-version: ${{ matrix.ghc }}
+          # Defaults, added for clarity:
+          cabal-version: ${{ matrix.cabal }}
+          cabal-update: true
+
+      - name: Build - Configure
+        run: |
+          cd ambar-record
+          cabal configure --enable-tests --enable-benchmarks
+          cabal build all --dry-run
+        # The last step generates dist-newstyle/cache/plan.json for the cache key.
+
+      - name: Build - Restore cached dependencies
+        uses: actions/cache/restore@v4
+        id: cache
+        env:
+          key: ${{ runner.os }}-ghc-${{ steps.setup.outputs.ghc-version }}-cabal-${{ steps.setup.outputs.cabal-version }}
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: ${{ env.key }}-plan-${{ hashFiles('**/plan.json') }}
+          restore-keys: ${{ env.key }}-
+
+      - name: Build - Install dependencies
+        # If we had an exact cache hit, the dependencies will be up to date.
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          cd ambar-record
+          cabal build all --only-dependencies
+
+      # Cache dependencies already here, so that we do not have to rebuild them should the subsequent steps fail.
+      - name: Build - Save dependencies to cache
+        uses: actions/cache/save@v4
+        # If we had an exact cache hit, trying to save the cache would error because of key clash.
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
+      - name: Build
+        run: |
+          cd ambar-record
+          cabal build all
+
+      - name: Test
+        run: |
+          cd ambar-record
+          cabal run ambar-record-tests
