@@ -25,7 +25,7 @@ class Decode a where
 
 -- | This is the format we currently use for records in Kafka.
 newtype TaggedJson = TaggedJson (Map Text Value)
-  deriving newtype (ToJSON, FromJSON)
+  deriving newtype (ToJSON, FromJSON, Show)
 
 instance Encode TaggedJson where
   encode (Record fields) = TaggedJson $ Map.fromList fields

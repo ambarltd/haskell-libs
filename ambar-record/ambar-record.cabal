@@ -50,8 +50,9 @@ test-suite ambar-record-tests
     build-depends:
         base ^>=4.20.0.0
         , ambar-record
-        , bytestring
         , aeson
+        , bytestring
+        , containers
         , text
         , time
         , hspec

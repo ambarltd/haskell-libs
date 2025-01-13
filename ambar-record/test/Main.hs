@@ -6,6 +6,7 @@ import Data.Base64.Types (extractBase64)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LB
 import Data.ByteString.Base64 (encodeBase64)
+import qualified Data.Map.Strict as Map
 import Data.Time.Format.ISO8601 (iso8601Show, iso8601ParseM)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import GHC.IsList (fromList)
@@ -18,7 +19,7 @@ import Test.QuickCheck (Arbitrary(..), Gen, property, arbitrary)
 import qualified Test.QuickCheck as Q
 
 import Ambar.Record (Record(..), Value(..), Bytes(..), TimeStamp(..))
-import Ambar.Record.Encoding (Encode, Decode, encode, decode)
+import Ambar.Record.Encoding (Encode, Decode, encode, decode, TaggedJson)
 import Ambar.Record.Encoding.TaggedBinary (TaggedBinary(..))
 
 main :: IO ()
@@ -26,6 +27,9 @@ main = hspec testEncodings
 
 testEncodings :: Spec
 testEncodings = describe "encoding" $ do
+  describe "TaggedJson" $ do
+    it "model-checking" $ run @TaggedJson Proxy
+
   describe "TaggedBinary" $ do
     it "model-checking" $ run @TaggedBinary Proxy
     describe "golden test" $ do
@@ -85,8 +89,10 @@ testEncodings = describe "encoding" $ do
       decode schema (encode record :: a) `shouldBe` Right record
 
 instance Arbitrary Record where
-  arbitrary = Record <$> pairs
+  arbitrary = Record . sorted <$> pairs
     where
+    sorted = Map.toList . Map.fromList
+
     pairs :: Gen [(Text, Value)]
     pairs = Q.resize 10 (Q.listOf pair)
 

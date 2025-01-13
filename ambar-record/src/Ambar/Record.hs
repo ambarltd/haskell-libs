@@ -1,15 +1,17 @@
 -- | The contents and types of Ambar records.
 module Ambar.Record where
 
-import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
+import Control.Applicative ((<|>))
+import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON, (.:))
 import qualified Data.Aeson as Json
 import qualified Data.Aeson.Types as Json
 import Data.Base64.Types (extractBase64)
 import Data.Binary (Binary)
 import qualified Data.Binary as Binary
 import Data.Binary.Instances.Aeson ()
-import Data.ByteString.Base64 (decodeBase64Untyped, encodeBase64)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Lazy as LB
+import Data.ByteString.Base64 (decodeBase64Untyped, encodeBase64)
 import Data.Char (toUpper)
 import Data.Hashable (Hashable)
 import Data.Int (Int64)
@@ -100,6 +102,7 @@ data Value
   | Json Text Json.Value
     -- ^ a Json value contains the original text provided by the client.
   | DateTime TimeStamp
+    -- ^ Only dates in format ISO8601 are supported.
   | Null
   deriving (Show, Generic, Eq, Hashable)
 
@@ -124,8 +127,30 @@ instance FromJSON TimeStamp where
 
 instance Binary Value
 
-instance FromJSON Value
-  where parseJSON = Json.genericParseJSON options
+instance FromJSON Value where
+  parseJSON = Json.withObject "Value" $ \val ->
+    foldr1 (<|>) $ const []
+      [ Boolean <$> val .: "BOOL"
+      , UInt <$> val .: "UINT"
+      , Int <$> val .: "INT"
+      , Real <$> val .: "REAL"
+      , String <$> val .: "STRING"
+      , Binary <$> val .: "BINARY"
+      -- invalid JSON are treated as String.
+      , do
+        txt <- val .: "JSON"
+        return $ case Json.eitherDecode (LB.fromStrict $ Text.encodeUtf8 txt) of
+          Right json -> Json txt json
+          Left _ -> String txt
+      -- invalid DateTimes are treated as String. Only ISO8601 dates are supported.
+      , do
+        txt <- val .: "DATETIME"
+        return $ case iso8601ParseM (Text.unpack txt) of
+          Just time -> DateTime (TimeStamp txt time)
+          Nothing -> String txt
+      , (\(_ :: Json.Value) -> Null) <$> val .: "NULL"
+      ]
+
 instance ToJSON Value
   where toJSON = Json.genericToJSON options
 
