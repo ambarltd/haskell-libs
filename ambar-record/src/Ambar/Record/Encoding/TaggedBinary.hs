@@ -9,12 +9,14 @@ import qualified Data.Binary.Put as Put
 import qualified Data.ByteString as BS
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as LB
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Control.Monad (unless)
 import Data.Text (Text, pack)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
+import Data.Time.Format.ISO8601 (iso8601ParseM)
 
-import Ambar.Record (Record(..), Value(..), Bytes(..))
+import Ambar.Record (Record(..), Value(..), Bytes(..), TimeStamp(..))
 import Ambar.Record.Encoding (Encode(..), Decode(..))
 
 newtype TaggedBinary = TaggedBinary ByteString
@@ -53,7 +55,7 @@ instance Encode TaggedBinary where
           $ Builder.fromLazyByteString
           $ LB.fromStrict
           $ Text.encodeUtf8 txt
-        DateTime txt -> string txt
+        DateTime (TimeStamp txt _) -> string txt
         Null -> mempty
 
       tag :: Value -> Builder
@@ -140,7 +142,10 @@ instance Decode TaggedBinary where
 
     real = Real <$> Get.getDoublebe
 
-    datetime = DateTime <$> string
+    datetime = do
+      txt <- string
+      time <- iso8601ParseM (Text.unpack txt)
+      return $ DateTime (TimeStamp txt time)
 
     json = do
       bs <- bytestring

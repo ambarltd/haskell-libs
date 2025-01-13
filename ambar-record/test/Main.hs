@@ -2,19 +2,22 @@
 module Main (main) where
 
 import qualified Data.Aeson as Aeson
+import Data.Base64.Types (extractBase64)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LB
 import Data.ByteString.Base64 (encodeBase64)
+import Data.Time.Format.ISO8601 (iso8601Show, iso8601ParseM)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import GHC.IsList (fromList)
 import Data.Proxy (Proxy(..))
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import Test.Hspec (Spec, describe, it, shouldBe)
+import Test.Hspec (Spec, hspec, describe, it, shouldBe)
 import Test.QuickCheck (Arbitrary(..), Gen, property, arbitrary)
 import qualified Test.QuickCheck as Q
 
-import Ambar.Record (Record(..), Value(..), Bytes(..))
+import Ambar.Record (Record(..), Value(..), Bytes(..), TimeStamp(..))
 import Ambar.Record.Encoding (Encode, Decode, encode, decode)
 import Ambar.Record.Encoding.TaggedBinary (TaggedBinary(..))
 
@@ -29,7 +32,7 @@ testEncodings = describe "encoding" $ do
       let test :: [(Text, Value)] -> Text -> IO ()
           test fields result = do
             let TaggedBinary encoded = encode (Record fields)
-            encodeBase64 (BS.toStrict encoded) `shouldBe` result
+            extractBase64 (encodeBase64 (BS.toStrict encoded)) `shouldBe` result
       it "Boolean" $ test [("field_Boolean", Boolean False) ] "AQAAAAAAAAAXAAAAAAAAAA1maWVsZF9Cb29sZWFuAAA="
       it "UInteger" $ test [("field_UInteger", UInt 1)] "AQAAAAAAAAAfAAAAAAAAAA5maWVsZF9VSW50ZWdlcgEAAAAAAAAAAQ=="
       it "Integer" $ test [("field_Integer", Int (-1))] "AQAAAAAAAAAeAAAAAAAAAA1maWVsZF9JbnRlZ2VyAv//////////"
@@ -46,8 +49,14 @@ testEncodings = describe "encoding" $ do
           , ("object" , Aeson.Object $ fromList [("first", Aeson.Bool True)])
           ]
         )] "AQAAAAAAAAB6AAAAAAAAAApmaWVsZF9KU09OBwAAAAAAAABfeyJhcnJheSI6WzFdLCJib29sIjp0cnVlLCJudWxsIjpudWxsLCJudW1iZXIiOjksIm9iamVjdCI6eyJmaXJzdCI6dHJ1ZX0sInN0cmluZyI6InNvbWVfc3RyaW5nIn0="
-      it "DateTime" $ test [("field_DateTime", DateTime "2024-01-23T00:26:17")] "AQAAAAAAAAAyAAAAAAAAAA5maWVsZF9EYXRlVGltZQYAAAAAAAAAEzIwMjQtMDEtMjNUMDA6MjY6MTc="
+      it "DateTime" $ do
+        let txt = "2024-01-23T00:26:17Z"
+        time <- iso8601ParseM txt
+        test [("field_DateTime", DateTime (TimeStamp (Text.pack txt) time))] "AQAAAAAAAAAzAAAAAAAAAA5maWVsZF9EYXRlVGltZQYAAAAAAAAAFDIwMjQtMDEtMjNUMDA6MjY6MTda"
       it "all" $  do
+        let txt = "2024-01-23T00:26:17Z"
+        time <- iso8601ParseM txt
+        let datetime = DateTime (TimeStamp (Text.pack txt) time)
         let record = Record
               [ ("field_Boolean", Boolean False)
               , ("field_UInteger", UInt 1)
@@ -64,11 +73,11 @@ testEncodings = describe "encoding" $ do
                   , ("object" , Aeson.Object $ fromList [("first", Aeson.Bool True)])
                   ]
                 )
-              , ("field_DateTime", DateTime "2024-01-23T00:26:17")
+              , ("field_DateTime", datetime)
               ]
         let TaggedBinary encoded = encode record
-            expected = "AQAAAAAAAAFaAAAAAAAAAA1maWVsZF9Cb29sZWFuAAAAAAAAAAAADmZpZWxkX1VJbnRlZ2VyAQAAAAAAAAABAAAAAAAAAA1maWVsZF9JbnRlZ2VyAv//////////AAAAAAAAAApmaWVsZF9SZWFsAz/4AAAAAAAAAAAAAAAAAAxmaWVsZF9TdHJpbmcEAAAAAAAAAAN3YXQAAAAAAAAAC2ZpZWxkX0J5dGVzBQAAAAAAAAADYWJjAAAAAAAAAApmaWVsZF9KU09OBwAAAAAAAABfeyJhcnJheSI6WzFdLCJib29sIjp0cnVlLCJudWxsIjpudWxsLCJudW1iZXIiOjksIm9iamVjdCI6eyJmaXJzdCI6dHJ1ZX0sInN0cmluZyI6InNvbWVfc3RyaW5nIn0AAAAAAAAADmZpZWxkX0RhdGVUaW1lBgAAAAAAAAATMjAyNC0wMS0yM1QwMDoyNjoxNw=="
-        encodeBase64 (BS.toStrict encoded) `shouldBe` expected
+            expected = "AQAAAAAAAAFbAAAAAAAAAA1maWVsZF9Cb29sZWFuAAAAAAAAAAAADmZpZWxkX1VJbnRlZ2VyAQAAAAAAAAABAAAAAAAAAA1maWVsZF9JbnRlZ2VyAv//////////AAAAAAAAAApmaWVsZF9SZWFsAz/4AAAAAAAAAAAAAAAAAAxmaWVsZF9TdHJpbmcEAAAAAAAAAAN3YXQAAAAAAAAAC2ZpZWxkX0J5dGVzBQAAAAAAAAADYWJjAAAAAAAAAApmaWVsZF9KU09OBwAAAAAAAABfeyJhcnJheSI6WzFdLCJib29sIjp0cnVlLCJudWxsIjpudWxsLCJudW1iZXIiOjksIm9iamVjdCI6eyJmaXJzdCI6dHJ1ZX0sInN0cmluZyI6InNvbWVfc3RyaW5nIn0AAAAAAAAADmZpZWxkX0RhdGVUaW1lBgAAAAAAAAAUMjAyNC0wMS0yM1QwMDoyNjoxN1o="
+        extractBase64 (encodeBase64 (BS.toStrict encoded)) `shouldBe` expected
   where
     run :: forall a. (Encode a, Decode a) => Proxy a -> Q.Property
     run _ = Q.withMaxSuccess 1000 $ property $ \record -> do
@@ -102,6 +111,18 @@ instance Arbitrary Record where
         | (key, value) <- pairs
         ]
 
+instance Arbitrary TimeStamp where
+  arbitrary = do
+    time <- posixSecondsToUTCTime . fromInteger <$> arbitrary
+    let txt = Text.pack $ iso8601Show time
+    return $ TimeStamp txt time
+
+  shrink (TimeStamp _ time) = do
+    n <- shrink $ ceiling $ utcTimeToPOSIXSeconds time
+    let time' = posixSecondsToUTCTime $ fromInteger n
+        txt = Text.pack $ iso8601Show time'
+    return $ TimeStamp txt time'
+
 instance Arbitrary Value where
   arbitrary = Q.oneof
     [ Boolean <$> Q.arbitraryBoundedEnum
@@ -113,9 +134,7 @@ instance Arbitrary Value where
         return $ String n
       -- binary of up to 1Kb
     , Binary . Bytes . BS.pack <$> Q.resize 1024 (Q.listOf arbitrary)
-    , do
-        FieldName n <- arbitrary
-        return $ DateTime n
+    , DateTime <$> arbitrary
     , return $ jsonValue Aeson.Null
     , return Null
     ]
@@ -127,7 +146,7 @@ instance Arbitrary Value where
     Real n -> Real <$> shrink n
     String txt -> String . unFieldName <$> shrink (FieldName txt)
     Binary (Bytes bs) -> Binary . Bytes <$> BS.tails bs
-    DateTime txt -> DateTime . unFieldName <$> shrink (FieldName txt)
+    DateTime timestamp -> DateTime <$> shrink timestamp
     Json _ json -> jsonValue <$> shrink json
     Null -> []
 

@@ -53,6 +53,7 @@ test-suite ambar-record-tests
         , bytestring
         , aeson
         , text
+        , time
         , hspec
         , base64
         , QuickCheck
