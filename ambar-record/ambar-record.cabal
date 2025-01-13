@@ -1,0 +1,60 @@
+cabal-version:      3.4
+name:               ambar-record
+version:            0.1.0.0
+synopsis:           Ambar's core record type
+license:            NONE
+author:             Ambar
+maintainer:         contact@ambar.cloud
+category:           Data
+build-type:         Simple
+
+common common
+    ghc-options: -Wall
+    default-language: GHC2021
+    default-extensions:
+        DerivingStrategies
+        LambdaCase
+        OverloadedStrings
+        RecordWildCards
+        TypeFamilies
+        TypeFamilyDependencies
+        DeriveAnyClass
+
+library
+    import:           common
+    hs-source-dirs:   src
+    exposed-modules:
+        Ambar.Record
+        Ambar.Record.Encoding
+        Ambar.Record.Encoding.TaggedBinary
+    build-depends:
+        base ^>=4.20.0.0
+        , aeson
+        , base64
+        , binary
+        , binary-instances
+        , bytestring
+        , containers
+        , hashable
+        , prettyprinter
+        , text
+        , time
+
+test-suite ambar-record-tests
+    import:           common
+    -- other-modules:
+    -- other-extensions:
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Main.hs
+    build-depends:
+        base ^>=4.20.0.0
+        , ambar-record
+        , aeson
+        , bytestring
+        , containers
+        , text
+        , time
+        , hspec
+        , base64
+        , QuickCheck
