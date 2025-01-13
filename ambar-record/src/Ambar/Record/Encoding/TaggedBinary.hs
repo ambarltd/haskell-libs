@@ -10,7 +10,6 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
 import Control.Monad (unless)
 import Data.Text (Text, pack)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
@@ -51,10 +50,9 @@ instance Encode TaggedBinary where
         Real n -> Put.execPut $ Put.putDoublebe n
         String t -> string t
         Binary (Bytes b) -> withLength (Builder.fromByteString b)
-        Json txt _ -> withLength
+        Json val -> withLength
           $ Builder.fromLazyByteString
-          $ LB.fromStrict
-          $ Text.encodeUtf8 txt
+          $ Aeson.encode val
         DateTime (TimeStamp txt _) -> string txt
         Null -> mempty
 
@@ -67,7 +65,7 @@ instance Encode TaggedBinary where
         String _ -> 4
         Binary _ -> 5
         DateTime _ -> 6
-        Json _ _ -> 7
+        Json _ -> 7
         Null -> 8
 
 instance Decode TaggedBinary where
@@ -151,7 +149,7 @@ instance Decode TaggedBinary where
       bs <- bytestring
       case Aeson.eitherDecode (LB.fromStrict bs) of
         Left err -> fail $ "unable to decode json field: " <> show err
-        Right val -> return $ Json (Text.decodeUtf8 bs) val
+        Right val -> return $ Json val
 
     string :: Get Text
     string = decodeUtf8 <$> bytestring

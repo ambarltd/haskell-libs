@@ -2,9 +2,10 @@
 module Main (main) where
 
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Bifunctor (first)
 import Data.Base64.Types (extractBase64)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as LB
 import Data.ByteString.Base64 (encodeBase64)
 import qualified Data.Map.Strict as Map
 import Data.Time.Format.ISO8601 (iso8601Show, iso8601ParseM)
@@ -13,7 +14,6 @@ import GHC.IsList (fromList)
 import Data.Proxy (Proxy(..))
 import Data.Text (Text)
 import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
 import Test.Hspec (Spec, hspec, describe, it, shouldBe)
 import Test.QuickCheck (Arbitrary(..), Gen, property, arbitrary)
 import qualified Test.QuickCheck as Q
@@ -28,7 +28,26 @@ main = hspec testEncodings
 testEncodings :: Spec
 testEncodings = describe "encoding" $ do
   describe "TaggedJson" $ do
-    it "model-checking" $ run @TaggedJson Proxy
+    it "to/from JSON" $ Q.withMaxSuccess 1000 $ property $ \record -> do
+      let schema = error "decoding using schemas not implemented yet"
+          tagged = encode record :: TaggedJson
+          json = Aeson.encode tagged
+          decoded = do
+            tagged' <- first Text.pack $ Aeson.eitherDecode json
+            decode @TaggedJson schema tagged'
+      decoded `shouldBe` Right record
+
+    it "parses invalid DateTime as String" $ do
+      let schema = error "decoding using schemas not implemented yet"
+          invalid = "2024-01-23T00:26:17"
+          json = Aeson.Object (KeyMap.fromList [("K",
+              Aeson.Object (KeyMap.fromList [("DATETIME", Aeson.String invalid) ])
+            )])
+          decoded = do
+            tagged' <- first Text.pack $ Aeson.eitherDecode $ Aeson.encode json
+            decode @TaggedJson schema tagged'
+      decoded `shouldBe` Right (Record [("K", String invalid)])
+
 
   describe "TaggedBinary" $ do
     it "model-checking" $ run @TaggedBinary Proxy
@@ -44,7 +63,7 @@ testEncodings = describe "encoding" $ do
       it "String" $ test [("field_String", String "wat")] "AQAAAAAAAAAgAAAAAAAAAAxmaWVsZF9TdHJpbmcEAAAAAAAAAAN3YXQ="
       it "Bytes" $ test [("field_Bytes", Binary (Bytes "abc"))] "AQAAAAAAAAAfAAAAAAAAAAtmaWVsZF9CeXRlcwUAAAAAAAAAA2FiYw=="
       it "JSON" $ test
-        [("field_JSON", jsonValue $ Aeson.Object $ fromList
+        [("field_JSON", Json $ Aeson.Object $ fromList
           [ ("null", Aeson.Null)
           , ("string", Aeson.String "some_string")
           , ("number", Aeson.Number 9)
@@ -68,7 +87,7 @@ testEncodings = describe "encoding" $ do
               , ("field_Real", Real 1.5)
               , ("field_String", String "wat")
               , ("field_Bytes", Binary (Bytes "abc"))
-              , ("field_JSON", jsonValue $ Aeson.Object $ fromList
+              , ("field_JSON", Json $ Aeson.Object $ fromList
                   [ ("null", Aeson.Null)
                   , ("string", Aeson.String "some_string")
                   , ("number", Aeson.Number 9)
@@ -141,7 +160,7 @@ instance Arbitrary Value where
       -- binary of up to 1Kb
     , Binary . Bytes . BS.pack <$> Q.resize 1024 (Q.listOf arbitrary)
     , DateTime <$> arbitrary
-    , return $ jsonValue Aeson.Null
+    , return $ Json Aeson.Null
     , return Null
     ]
 
@@ -153,11 +172,8 @@ instance Arbitrary Value where
     String txt -> String . unFieldName <$> shrink (FieldName txt)
     Binary (Bytes bs) -> Binary . Bytes <$> BS.tails bs
     DateTime timestamp -> DateTime <$> shrink timestamp
-    Json _ json -> jsonValue <$> shrink json
+    Json json -> Json <$> shrink json
     Null -> []
-
-jsonValue :: Aeson.Value -> Value
-jsonValue value = Json (Text.decodeUtf8 $ LB.toStrict $ Aeson.encode value) value
 
 -- A text of an appropriate length to be used as the name of a field
 newtype FieldName = FieldName { unFieldName :: Text }

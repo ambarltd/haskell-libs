@@ -53,6 +53,6 @@ instance Encode Json.Value where
       Real x -> toJSON x
       String x -> toJSON x
       Binary (Bytes x) -> Json.String $ extractBase64 $ encodeBase64 x
-      Json txt _ -> toJSON txt
+      Json val -> val
       DateTime x -> toJSON x
       Null -> Json.Null

@@ -1,10 +1,10 @@
 -- | The contents and types of Ambar records.
 module Ambar.Record where
 
-import Control.Applicative ((<|>))
-import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON, (.:))
+import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
 import qualified Data.Aeson as Json
 import qualified Data.Aeson.Types as Json
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Base64.Types (extractBase64)
 import Data.Binary (Binary)
 import qualified Data.Binary as Binary
@@ -99,8 +99,7 @@ data Value
   | Real Double
   | String Text
   | Binary Bytes
-  | Json Text Json.Value
-    -- ^ a Json value contains the original text provided by the client.
+  | Json Json.Value
   | DateTime TimeStamp
     -- ^ Only dates in format ISO8601 are supported.
   | Null
@@ -129,27 +128,26 @@ instance Binary Value
 
 instance FromJSON Value where
   parseJSON = Json.withObject "Value" $ \val ->
-    foldr1 (<|>) $ const []
-      [ Boolean <$> val .: "BOOL"
-      , UInt <$> val .: "UINT"
-      , Int <$> val .: "INT"
-      , Real <$> val .: "REAL"
-      , String <$> val .: "STRING"
-      , Binary <$> val .: "BINARY"
-      -- invalid JSON are treated as String.
-      , do
-        txt <- val .: "JSON"
-        return $ case Json.eitherDecode (LB.fromStrict $ Text.encodeUtf8 txt) of
-          Right json -> Json txt json
-          Left _ -> String txt
-      -- invalid DateTimes are treated as String. Only ISO8601 dates are supported.
-      , do
-        txt <- val .: "DATETIME"
-        return $ case iso8601ParseM (Text.unpack txt) of
-          Just time -> DateTime (TimeStamp txt time)
-          Nothing -> String txt
-      , (\(_ :: Json.Value) -> Null) <$> val .: "NULL"
-      ]
+    case KeyMap.toList val of
+      [(k,v)] ->
+        case k of
+          "BOOLEAN" -> Boolean <$> parseJSON v
+          "UINT"    -> UInt <$> parseJSON v
+          "INT"     -> Int <$> parseJSON v
+          "REAL"    -> Real <$> parseJSON v
+          "STRING"  -> String <$> parseJSON v
+          "BINARY"  -> Binary <$> parseJSON v
+          -- invalid JSON are treated as String.
+          "JSON" -> return $ Json v
+          -- invalid DateTimes are treated as String. Only ISO8601 dates are supported.
+          "DATETIME" -> do
+            txt <- parseJSON v
+            return $ case iso8601ParseM (Text.unpack txt) of
+              Just time -> DateTime (TimeStamp txt time)
+              Nothing -> String txt
+          "NULL" -> return Null
+          _ -> fail $ "invalid Value type: " <> show k
+      _ -> fail "Expected exactly one key"
 
 instance ToJSON Value
   where toJSON = Json.genericToJSON options
