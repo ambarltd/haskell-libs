@@ -18,7 +18,7 @@ import Test.Hspec (Spec, hspec, describe, it, shouldBe)
 import Test.QuickCheck (Arbitrary(..), Gen, property, arbitrary)
 import qualified Test.QuickCheck as Q
 
-import Ambar.Record (Record(..), Value(..), Bytes(..), TimeStamp(..))
+import Ambar.Record (Record(..), Value(..), Bytes(..), TimeStamp(..), toTimeStamp)
 import Ambar.Record.Encoding (Encode, Decode, encode, decode, TaggedJson)
 import Ambar.Record.Encoding.TaggedBinary (TaggedBinary(..))
 
@@ -37,16 +37,28 @@ testEncodings = describe "encoding" $ do
             decode @TaggedJson schema tagged'
       decoded `shouldBe` Right record
 
-    it "parses invalid DateTime as String" $ do
+    it "accepts invalid DateTime" $ do
       let schema = error "decoding using schemas not implemented yet"
-          invalid = "2024-01-23T00:26:17"
+          invalid = "wat"
           json = Aeson.Object (KeyMap.fromList [("K",
               Aeson.Object (KeyMap.fromList [("DATETIME", Aeson.String invalid) ])
             )])
           decoded = do
             tagged' <- first Text.pack $ Aeson.eitherDecode $ Aeson.encode json
             decode @TaggedJson schema tagged'
-      decoded `shouldBe` Right (Record [("K", String invalid)])
+      decoded `shouldBe` Right (Record [("K", DateTime $ TimeStamp invalid Nothing)])
+
+    it "parses DateTime missing the Z" $ do
+      let schema = error "decoding using schemas not implemented yet"
+          date = "2024-01-23T00:26:17"
+          json = Aeson.Object (KeyMap.fromList [("K",
+              Aeson.Object (KeyMap.fromList [("DATETIME", Aeson.String date) ])
+            )])
+          decoded = do
+            tagged' <- first Text.pack $ Aeson.eitherDecode $ Aeson.encode json
+            decode @TaggedJson schema tagged'
+      utc <- iso8601ParseM $ Text.unpack $ date <> "Z"
+      decoded `shouldBe` Right (Record [("K", DateTime $ TimeStamp date (Just utc))])
 
 
   describe "TaggedBinary" $ do
@@ -55,7 +67,10 @@ testEncodings = describe "encoding" $ do
       let test :: [(Text, Value)] -> Text -> IO ()
           test fields result = do
             let TaggedBinary encoded = encode (Record fields)
+                schema = error "decoding using schemas not implemented yet"
             extractBase64 (encodeBase64 (BS.toStrict encoded)) `shouldBe` result
+            decode schema (TaggedBinary encoded) `shouldBe` Right (Record fields)
+
       it "Boolean" $ test [("field_Boolean", Boolean False) ] "AQAAAAAAAAAXAAAAAAAAAA1maWVsZF9Cb29sZWFuAAA="
       it "UInteger" $ test [("field_UInteger", UInt 1)] "AQAAAAAAAAAfAAAAAAAAAA5maWVsZF9VSW50ZWdlcgEAAAAAAAAAAQ=="
       it "Integer" $ test [("field_Integer", Int (-1))] "AQAAAAAAAAAeAAAAAAAAAA1maWVsZF9JbnRlZ2VyAv//////////"
@@ -74,12 +89,13 @@ testEncodings = describe "encoding" $ do
         )] "AQAAAAAAAAB6AAAAAAAAAApmaWVsZF9KU09OBwAAAAAAAABfeyJhcnJheSI6WzFdLCJib29sIjp0cnVlLCJudWxsIjpudWxsLCJudW1iZXIiOjksIm9iamVjdCI6eyJmaXJzdCI6dHJ1ZX0sInN0cmluZyI6InNvbWVfc3RyaW5nIn0="
       it "DateTime" $ do
         let txt = "2024-01-23T00:26:17Z"
-        time <- iso8601ParseM txt
-        test [("field_DateTime", DateTime (TimeStamp (Text.pack txt) time))] "AQAAAAAAAAAzAAAAAAAAAA5maWVsZF9EYXRlVGltZQYAAAAAAAAAFDIwMjQtMDEtMjNUMDA6MjY6MTda"
+        test [("field_DateTime", DateTime (toTimeStamp txt))] "AQAAAAAAAAAzAAAAAAAAAA5maWVsZF9EYXRlVGltZQYAAAAAAAAAFDIwMjQtMDEtMjNUMDA6MjY6MTda"
+      it "invalid DateTime" $ do
+        let txt = "wat"
+        test [("field_DateTime", DateTime (toTimeStamp txt))] "AQAAAAAAAAAiAAAAAAAAAA5maWVsZF9EYXRlVGltZQYAAAAAAAAAA3dhdA=="
       it "all" $  do
         let txt = "2024-01-23T00:26:17Z"
-        time <- iso8601ParseM txt
-        let datetime = DateTime (TimeStamp (Text.pack txt) time)
+        let datetime = DateTime (toTimeStamp txt)
         let record = Record
               [ ("field_Boolean", Boolean False)
               , ("field_UInteger", UInt 1)
@@ -140,13 +156,17 @@ instance Arbitrary TimeStamp where
   arbitrary = do
     time <- posixSecondsToUTCTime . fromInteger <$> arbitrary
     let txt = Text.pack $ iso8601Show time
-    return $ TimeStamp txt time
+    return $ TimeStamp txt (Just time)
 
-  shrink (TimeStamp _ time) = do
-    n <- shrink $ ceiling $ utcTimeToPOSIXSeconds time
-    let time' = posixSecondsToUTCTime $ fromInteger n
-        txt = Text.pack $ iso8601Show time'
-    return $ TimeStamp txt time'
+  shrink (TimeStamp _ mtime) =
+    case mtime of
+      Nothing -> []
+      Just time -> TimeStamp "" Nothing :
+        [ TimeStamp txt (Just time')
+        | n <- shrink $ ceiling $ utcTimeToPOSIXSeconds time
+        , let time' = posixSecondsToUTCTime $ fromInteger n
+              txt = Text.pack $ iso8601Show time'
+        ]
 
 instance Arbitrary Value where
   arbitrary = Q.oneof
