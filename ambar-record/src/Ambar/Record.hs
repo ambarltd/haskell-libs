@@ -1,6 +1,7 @@
 -- | The contents and types of Ambar records.
 module Ambar.Record where
 
+import Control.Applicative (asum)
 import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
 import qualified Data.Aeson as Json
 import qualified Data.Aeson.Types as Json
@@ -111,18 +112,28 @@ data TimeStamp = TimeStamp Text (Maybe UTCTime)
   deriving (Eq, Hashable)
   deriving stock (Show, Generic)
 
+toTimeStamp :: Text -> TimeStamp
+toTimeStamp txt =
+  TimeStamp txt mdate
+  where
+  str = Text.unpack txt
+  mdate = asum
+    [ iso8601ParseM str
+    -- We support UTC dates without the `Z` at the end
+    -- because of an error in the MySQL connector which
+    -- was generating dates of this kind.
+    , iso8601ParseM (str <> "Z")
+    ]
+
 instance Binary TimeStamp where
   put (TimeStamp txt _) = Binary.put txt
-  get = do
-    txt <- Binary.get
-    return $ TimeStamp txt (iso8601ParseM $ Text.unpack txt)
+  get = toTimeStamp <$> Binary.get
 
 instance ToJSON TimeStamp where
   toJSON (TimeStamp txt _) = toJSON txt
 
 instance FromJSON TimeStamp where
-  parseJSON = Json.withText "TimeStamp" $ \txt ->
-    return $ TimeStamp txt (iso8601ParseM $ Text.unpack txt)
+  parseJSON = Json.withText "TimeStamp" (return . toTimeStamp)
 
 instance Binary Value
 
@@ -140,9 +151,7 @@ instance FromJSON Value where
           -- invalid JSON are treated as String.
           "JSON" -> return $ Json v
           -- invalid DateTimes are treated as String. Only ISO8601 dates are supported.
-          "DATETIME" -> do
-            txt <- parseJSON v
-            return $ DateTime $ TimeStamp txt $ iso8601ParseM (Text.unpack txt)
+          "DATETIME" -> DateTime . toTimeStamp <$> parseJSON v
           "NULL" -> return Null
           _ -> fail $ "invalid Value type: " <> show k
       _ -> fail "Expected exactly one key"
