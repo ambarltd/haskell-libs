@@ -10,7 +10,6 @@ import Data.Binary (Binary)
 import qualified Data.Binary as Binary
 import Data.Binary.Instances.Aeson ()
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Lazy as LB
 import Data.ByteString.Base64 (decodeBase64Untyped, encodeBase64)
 import Data.Char (toUpper)
 import Data.Hashable (Hashable)
@@ -106,7 +105,9 @@ data Value
   deriving (Show, Generic, Eq, Hashable)
 
 -- | A timestamp value with the original timestamp string value.
-data TimeStamp = TimeStamp Text UTCTime
+-- We have a Maybe UTCTime here because we want to be lenient to
+-- invalid dates being ingested.
+data TimeStamp = TimeStamp Text (Maybe UTCTime)
   deriving (Eq, Hashable)
   deriving stock (Show, Generic)
 
@@ -114,15 +115,14 @@ instance Binary TimeStamp where
   put (TimeStamp txt _) = Binary.put txt
   get = do
     txt <- Binary.get
-    time <- iso8601ParseM (Text.unpack txt)
-    return $ TimeStamp txt time
+    return $ TimeStamp txt (iso8601ParseM $ Text.unpack txt)
 
 instance ToJSON TimeStamp where
   toJSON (TimeStamp txt _) = toJSON txt
 
 instance FromJSON TimeStamp where
   parseJSON = Json.withText "TimeStamp" $ \txt ->
-    TimeStamp txt <$> iso8601ParseM (Text.unpack txt)
+    return $ TimeStamp txt (iso8601ParseM $ Text.unpack txt)
 
 instance Binary Value
 
@@ -142,9 +142,7 @@ instance FromJSON Value where
           -- invalid DateTimes are treated as String. Only ISO8601 dates are supported.
           "DATETIME" -> do
             txt <- parseJSON v
-            return $ case iso8601ParseM (Text.unpack txt) of
-              Just time -> DateTime (TimeStamp txt time)
-              Nothing -> String txt
+            return $ DateTime $ TimeStamp txt $ iso8601ParseM (Text.unpack txt)
           "NULL" -> return Null
           _ -> fail $ "invalid Value type: " <> show k
       _ -> fail "Expected exactly one key"

@@ -142,8 +142,7 @@ instance Decode TaggedBinary where
 
     datetime = do
       txt <- string
-      time <- iso8601ParseM (Text.unpack txt)
-      return $ DateTime (TimeStamp txt time)
+      return $ DateTime $ TimeStamp txt $ iso8601ParseM (Text.unpack txt)
 
     json = do
       bs <- bytestring
