@@ -116,13 +116,26 @@ serialised (Logger f) = Logger $ \msg ->
 standardLogger :: Logger IO Text
 standardLogger = Logger $ Text.hPutStrLn stderr
 
+data LoggerOpts = LoggerOpts
+  { withTimestamps :: Bool
+  }
+
+defaultLoggerOpts :: LoggerOpts
+defaultLoggerOpts = LoggerOpts
+  { withTimestamps = False
+  }
+
 -- | Log up to a set log level, including location for errors and debugging.
 -- Serializes all logs, making it not suitable for high performance logging.
 plainLogger :: Severity -> SimpleLogger
-plainLogger maxSeverity =
+plainLogger maxSeverity = plainLoggerWith maxSeverity defaultLoggerOpts
+
+plainLoggerWith :: Severity -> LoggerOpts -> SimpleLogger
+plainLoggerWith maxSeverity opts =
   filterM (\(WithSeverity s _) -> s <= maxSeverity) $
-  enhance prettify $
-  serialised standardLogger
+  if withTimestamps opts
+    then enhanceM withTimeStamp $ enhance prettify $ serialised standardLogger
+    else enhance prettify $ serialised standardLogger
 
 prettify :: Pretty a => a -> Text
 prettify = renderStrict . layoutSmart defaultLayoutOptions . pretty
