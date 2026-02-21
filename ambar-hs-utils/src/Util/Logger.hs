@@ -121,6 +121,7 @@ standardLogger = Logger $ Text.hPutStrLn stderr
 plainLogger :: Severity -> SimpleLogger
 plainLogger maxSeverity =
   filterM (\(WithSeverity s _) -> s <= maxSeverity) $
+  enhanceM withTimeStamp $
   enhance prettify $
   serialised standardLogger
 
